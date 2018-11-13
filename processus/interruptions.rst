@@ -13,7 +13,7 @@
 ..     GNU General Public License for more details.
 
 ..     You should have received a copy of the GNU General Public License
-..     along with Foobar.  If not, see <https://www.gnu.org/licenses/>
+..     along with "Présentation du noyau de Redox OS".  If not, see <https://www.gnu.org/licenses/>
 
 Processus -- Les interruptions
 ==============================
@@ -24,7 +24,9 @@ Les interruptions sont un mécanisme fondamental utilisé par l'OS. Lorsqu'un é
 * au niveau du processeur ou de la mémoire : division par 0, overflow, défaut de page ;
 * au niveau du processus : appel système.
 
-Le matériel interrompt le traitement actuel et démarre le traitement d'une routine. Ces routines sont enregistrées par l'OS dans un vecteur d'interruption.
+Le matériel interrompt le traitement actuel et démarre le traitement d'une routine. Ces routines sont enregistrées par l'OS dans un vecteur d'interruption. C'est le matériel qui fournit ce dispositif de vecteur d'interruption (instruction :code:`lidt` [1]_).
+
+.. [1] 2.8.1 Loading and Storing System Registers dans https://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-3a-part-1-manual.pdf.
 
 Retour sur :code:`clone`
 ------------------------
@@ -61,11 +63,11 @@ L'interruption aboutit donc à l'appel de la fonction :code:`syscall::syscall` a
 
 Le mécanisme d'interruption en détail
 -------------------------------------
-Les routine du vecteur d'interruption sont sont déclarées, pour une raison qui va s'éclairer, au sein d'une macro qui créé une fonction enveloppe. Les macros en question se trouvent dans le fichier `kernel/src/arch/x86_64/macros.rs <https://gitlab.redox-os.org/redox-os/kernel/tree/master/src/kernel/arch/x86_64/macros.rs>`_. Il en existe actuellement cinq : :code:`interrupt`, :code:`interrupt_stack`, :code:`interrupt_error`, :code:`interrupt_stack_p` et :code:`interrupt_error_p`.
+Les routine du vecteur d'interruption sont sont déclarées dans Redox, pour une raison qui va s'éclairer, au sein d'une macro qui créé une fonction enveloppe. Les macros en question se trouvent dans le fichier `kernel/src/arch/x86_64/macros.rs <https://gitlab.redox-os.org/redox-os/kernel/tree/master/src/kernel/arch/x86_64/macros.rs>`_. Il en existe actuellement cinq : :code:`interrupt`, :code:`interrupt_stack`, :code:`interrupt_error`, :code:`interrupt_stack_p` et :code:`interrupt_error_p`.
 
 Au niveau matériel
 ~~~~~~~~~~~~~~~~~~
-Il faut à présent entrer dans le détail [1]_: au moment de l'interruption et lorsque la routine invoquée est exécutée à un niveau inférieurle processeur change la pile d'exécution. Typiquement, c'est ce qui se produit quand un processeur utilisateur interrompu et une routine en mode noyau activée. Redox déclare toutes les routines d'interruption au niveau 0 (espace noyau).
+Il faut à présent entrer dans le détail [2]_: au moment de l'interruption et lorsque la routine invoquée est exécutée à un niveau inférieurle processeur change la pile d'exécution. Typiquement, c'est ce qui se produit quand un processeur utilisateur interrompu et une routine en mode noyau activée. Redox déclare toutes les routines d'interruption au niveau 0 (espace noyau).
 
 Le processeur trouve le sélecteur de segment et le pointeur de pile cible dans le `TaskStateSegment` et pousse sur la nouvelle pile :
 1. le sélecteur de segment de pile du processus courant
@@ -75,7 +77,10 @@ Le processeur trouve le sélecteur de segment et le pointeur de pile cible dans 
 5. le pointeur de pile
 6. un code d'erreur optionnel.
 
-Ce matériel est nécessaire au processeur pour effectuer un retour d'interruption.
+Ces informations sont nécessaires au processeur pour effectuer un retour d'interruption.
+
+.. [2] Pour le détail, voir : `6.12.1
+Exception- or Interrupt-Handler Procedures <https://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-3a-part-1-manual.pdf>`_.
 
 Au niveau de Redox
 ~~~~~~~~~~~~~~~~~~
@@ -114,22 +119,32 @@ Redox a maintenant la main. Examinons la macro la plus simple, à savoir :code:`
         };
     }
 
-Il pousse également sur la pile les "scratch registers", à savoir les registres qui peuvent être utilisés librement et le registre `fs`, qu'il remplace par le Thread Local Storage du noyau.
+Cette macro vaut la peine d'être étudiée en détail. Le bloc fonction est intégré dans une fonction :code:`inner`.
 
-La sauvegarde du contexte consiste à pousser les informations sur la pile puis à appeler :code:`pti::unmap()`. Cette fonction est liée à des questions de sécurité (la faille Meltdown), mais elle change surtout de pile pour une pile liée à un CPU particulier.
+La sauvegarde du contexte consiste à pousser les informations sur la pile : Redox pousse également sur la pile les "scratch registers", à savoir les registres qui peuvent être utilisés librement et le registre `fs`, qu'il remplace par le Thread Local Storage du noyau :
 
-.. [1] Pour le détail, voir : `6.12.1
-Exception- or Interrupt-Handler Procedures <https://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-3a-part-1-manual.pdf>`_.
+.. code:: rust
 
-Cette macro vaut la peine d'être étudiée en détail. Le bloc fonction est intégré dans une fonction :code:`inner`. Le code commence par pousser les registres `rax`, `rcx`, `rdx`, `rdi`, `rsi` et `r8` à `r11` sur la pile (macro :code:`scratch_push`). Ensuite, c'est au tour des registres `rbx`, `rbp` et `r12` à `r15` (macro :code:`preserved_push`). Enfin, la macro :code:`fs_push` pousse le registre `fs` sur la pile et remplace sa valeur par `0x18` (Thread local storage ring 0 = GDT_KERNEL_TLS << 3 | 0).
+    macro_rules! fs_push {
+        () => (asm!(
+            "push fs
+            mov rax, 0x18
+            mov fs, ax"
+            : : : : "intel", "volatile"
+        ));
+    }
 
-On récupère le pointeur de pile `rsp` pour accéder à la structure `InterruptErrorStackP` qui contient tout ce qui vient d'être poussé sur la pile.
+Ici, `0x18` représente l'indice `GDT_KERNEL_TLS` multiplié par 8 (la taille en octets d'une entrée dans la table) auquel on additione 0 (pour le mode d'exécutiuon Ring 0) [3]_.
 
-Maintenant, il s'agit d'éviter la faille Meltdown, au moyen d'une *Page Table Isolation*. Ceci est vu en annexe.
+Vient ensuite :code:`pti::unmap()`. Cette fonction est liée à des questions de sécurité (la faille Meltdown) [4]_.
 
+Vient ensuite l'exécution de la fonction enveloppée. Celle-ci peut récupérer ce qui est déposé sur la pile, mais doit remettre la pile en été avant de se terminer.
 
+Enfin, les informations empilées par Redox sont dépilées, et le matériel reprend la main. Il retrouve les informations qu'il avait empilées initialement (sélecteurs, EFLAGS, etc.) et retourne au processus interrompu.
 
+.. [3] :code:`GDT_KERNEL_TLS << 3 | 0 = 0x18`
 
+.. [4] Ceci est vu en annexe.
 
 Quelques interruptions intéressantes
 ------------------------------------
@@ -164,49 +179,9 @@ Allons voir la fonction `exception::page <https://gitlab.redox-os.org/redox-os/k
 
 Qui est levée en cas de défault de page. Le principe en est simple : on déplace le contenu du registre `cr2` (l'adresse de la page appelée) sur le registre `rax` pour le lire. Le :code:`dump` affiche la pile et :code:`stack_trace` la suite des appels. Enfin, le signal `SIGSEGV` est envoyé au processus. On verra le détail des signaux dans la partie sur la communication inter-processus.
 
-Il faut noter que les fonctions d'interruption sont enveloppées dans une macro, par exemple :code:`interrupt` dans `kernel/src/arch/x86_64/macros.rs <https://gitlab.redox-os.org/redox-os/kernel/tree/master/src/kernel/arch/x86_64/macros.rs>`_:
-
-.. code:: rust
-
-    #[macro_export]
-    macro_rules! interrupt_error_p {
-        ($name:ident, $stack:ident, $func:block) => {
-            #[naked]
-            pub unsafe extern fn $name () {
-                #[inline(never)]
-                unsafe fn inner($stack: &$crate::arch::x86_64::macros::InterruptErrorStackP) {
-                    $func
-                }
-
-                // Push scratch registers
-                scratch_push!();
-                preserved_push!();
-                fs_push!();
-
-                // Get reference to stack variables
-                let rsp: usize;
-                asm!("" : "={rsp}"(rsp) : : : "intel", "volatile");
-
-                // Map kernel
-                $crate::arch::x86_64::pti::map();
-
-                // Call inner rust function
-                inner(&*(rsp as *const $crate::arch::x86_64::macros::InterruptErrorStackP));
-
-                // Unmap kernel
-                $crate::arch::x86_64::pti::unmap();
-
-                // Pop scratch registers, error code, and return
-                fs_pop!();
-                preserved_pop!();
-                scratch_pop!();
-                asm!("add rsp, 8" : : : : "intel", "volatile");
-                iret!();
-            }
-        };
-    }
-
-
+La différente entre :code:`interrupt` et :code:`interrupt_p` est simple :
+* Redox pousse sur la pile, en plus de "scratch register", les "preserved registers" dont les valeurs sont préservées au moment de l'appel de fonction.
+* Redox récupère le pointeur de pile et le transmet en argument à la fonction.
 
 Le timer
 --------
@@ -266,4 +241,4 @@ La fonciton :code:`trigger` se contente d'envoyer un ACK au périhphérique (1) 
         event::trigger(IRQ_SCHEME_ID.load(Ordering::SeqCst), irq as usize, EVENT_READ);
     }
 
-On reviendra sur le passage de message dans Redox, qui est une des particularités de cet OS. Qu'il suffise de dire ici
+On reviendra sur le passage de message dans Redox, qui est une des particularités de cet OS.
