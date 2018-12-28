@@ -48,8 +48,11 @@ Cette documentation constitue un parcours libre dans le micro-noyau
    annexes/x86_64.rst
    annexes/PTI.rst
    annexes/fichiers.rst
+   annexes/meltdown.rst
    a-classer/noyau-utilisateur.rst
    a-classer/chargement.rst
+   a-classer/demarrage-noyau.rst
+   a-classer/systemes-fichiers.rst
 
 Index
 =====

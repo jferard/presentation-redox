@@ -79,8 +79,7 @@ Le processeur trouve le sélecteur de segment et le pointeur de pile cible dans 
 
 Ces informations sont nécessaires au processeur pour effectuer un retour d'interruption.
 
-.. [2] Pour le détail, voir : `6.12.1
-Exception- or Interrupt-Handler Procedures <https://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-3a-part-1-manual.pdf>`_.
+.. [2] Pour le détail, voir : `6.12.1 Exception- or Interrupt-Handler Procedures <https://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-3a-part-1-manual.pdf>`_.
 
 Au niveau de Redox
 ~~~~~~~~~~~~~~~~~~
