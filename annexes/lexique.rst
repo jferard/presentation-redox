@@ -27,4 +27,5 @@ Lexique
 * EFLAGS : PSW sur IBM OS/360.
 * Firmware (micrologiciel) : programme embarqué dans le matériel informatique.
 * MBR : master boot record
+* PEI : Pre-EFI Initialization. 
 * POST : Power-On Self-Test. Premier programme exécuté par le firmware, destiné à vérifier le fonctionnement et la configuration du matériel.

@@ -49,6 +49,7 @@ Cette documentation constitue un parcours libre dans le micro-noyau
    annexes/PTI.rst
    annexes/fichiers.rst
    annexes/meltdown.rst
+   annexes/asm.rst
    a-classer/noyau-utilisateur.rst
    a-classer/chargement.rst
    a-classer/demarrage-noyau.rst

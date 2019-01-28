@@ -19,9 +19,14 @@ Mémoire -- pagination
 =====================
 Présentation
 ------------
-L'idée de base est que chaque processus possède un espace d'adressage unique. Cet espace d'adressage est mappé sur la mémoire physique, ce qui signifie qu'à chaque page de 4096 octets de cet espace d'adressage, l'OS va essayer de faire correspondre un cadre de page, c'est-à-dire une portion de 4096 octets de la mémoire. Quelques remarques :
+L'idée de base est que chaque processus possède un espace d'adressage unique. Cet espace d'adressage est mappé sur la mémoire physique, ce qui signifie qu'à chaque page de 4096 octets de cet espace d'adressage, l'OS va essayer de faire correspondre un cadre de page, c'est-à-dire une portion de 4096 octets de la mémoire. Cela suppose que l'OS gère à la fois :
+
+* une table des pages pour faire correspondre un cadre de page à une adresse virtuelle utilisée par un programme ;
+* une liste des cadres de page libres en cas d'allocation d'un cadre de page à une nouvelle page.
+
+Quelques remarques :
 * l'adresse virtuelle (de la page) et l'adresse physique (du cadre) sont complètement indépendantes ;
-* un cadre peut correspondre à plusieurs pages, d'un ou plusieurs processus ;
+* un cadre peut correspondre à plusieurs pages, d'un ou plusieurs processus, ce qui permet un partage de la mémoire (bibliothèques partagées, espace commun de données) ;
 
 Redox ne pratique pas la pagination à la demande. Un défaut de page est donc une erreur fatale.
 
